@@ -55,10 +55,8 @@
 #include "engine/TextRaster.h"
 #include "engine/TransitionCatalog.h"
 #include "engine/WhisperTranscriber.h"
-#ifndef Q_OS_ANDROID
 #include "mcp/McpCatalog.h"
 #include "mcp/McpServer.h"
-#endif
 #include "mcp/McpJson.h"
 
 #include <QBuffer>
@@ -643,10 +641,8 @@ AppController::~AppController()
     if (hadMulticamSession)
         m_playback.setProject(&m_project);
 
-#ifndef Q_OS_ANDROID
     if (m_mcp)
         m_mcp->stop();
-#endif
     // ~QUndoStack clears the stack, which emits indexChanged into the lambda
     // below — but by then the members it touches (m_selection, the models) are
     // already gone. Cut the signals before any member is destroyed.
@@ -696,12 +692,10 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
 
     m_undoStack.setUndoLimit(kMaxUndoSteps);
 
-#ifndef Q_OS_ANDROID
     m_mcp = std::make_unique<drift::mcp::McpServer>(this);
     connect(m_mcp.get(), &drift::mcp::McpServer::runningChanged, this,
             &AppController::mcpRunningChanged);
     connect(m_mcp.get(), &drift::mcp::McpServer::errorChanged, this, &AppController::mcpErrorChanged);
-#endif
     connect(&m_undoStack, &QUndoStack::indexChanged, this, &AppController::undoStackChanged);
     connect(&m_undoStack, &QUndoStack::indexChanged, this, [this] {
         m_timelineModel.refresh();
@@ -14677,65 +14671,37 @@ void AppController::shareLastExport()
 
 bool AppController::mcpRunning() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp && m_mcp->running();
-#else
-    return false;
-#endif
 }
 
 QString AppController::mcpUrl() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->url() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpToken() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->token() : QString();
-#else
-    return {};
-#endif
 }
 
 int AppController::mcpPort() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? int(m_mcp->port()) : 0;
-#else
-    return 0;
-#endif
 }
 
 QString AppController::mcpError() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->error() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpCursorSnippet() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->cursorSnippet() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpClaudeCommand() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->claudeCommand() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpStdioSnippet() const
@@ -14752,16 +14718,12 @@ QString AppController::mcpStdioSnippet() const
 
 void AppController::setMcpEnabled(bool enabled)
 {
-#ifndef Q_OS_ANDROID
     if (!m_mcp)
         return;
     if (enabled)
         m_mcp->start();
     else
         m_mcp->stop();
-#else
-    Q_UNUSED(enabled);
-#endif
 }
 
 namespace {
@@ -14793,16 +14755,12 @@ void AppController::copyMcpStdioSnippet()
 
 QString AppController::mcpAgentGuide() const
 {
-#ifndef Q_OS_ANDROID
     QString guide = drift::mcp::agentGuideText();
     if (m_mcp && m_mcp->running()) {
         guide += QStringLiteral("\nThis session:\nURL: %1\nToken: %2\n")
                      .arg(mcpUrl(), mcpToken());
     }
     return guide;
-#else
-    return {};
-#endif
 }
 
 void AppController::copyMcpAgentGuide()
