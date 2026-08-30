@@ -603,25 +603,29 @@ qt_add_executable(drift
     src/preview/PreviewItem.cpp
 )
 
-# MCP is a desktop agent protocol (stdio/HTTP). Skip it on Android APK builds.
+# MCP HTTP is available on desktop and Android. The server still binds only to
+# 127.0.0.1 and uses a fresh bearer token for every session. stdio attachment
+# remains desktop-only because Android APK processes are not launched as CLI tools.
+target_sources(drift PRIVATE
+    src/mcp/McpSession.h
+    src/mcp/McpSession.cpp
+    src/mcp/McpCatalog.h
+    src/mcp/McpCatalog.cpp
+    src/mcp/McpProtocol.h
+    src/mcp/McpProtocol.cpp
+    src/mcp/McpHttp.h
+    src/mcp/McpHttp.cpp
+    src/mcp/McpDispatcher.h
+    src/mcp/McpDispatcher.cpp
+    src/mcp/McpDispatcherExtended.cpp
+    src/mcp/McpServer.h
+    src/mcp/McpServer.cpp
+    src/mcp/McpJson.h
+)
 if(NOT ANDROID)
     target_sources(drift PRIVATE
-        src/mcp/McpSession.h
-        src/mcp/McpSession.cpp
-        src/mcp/McpCatalog.h
-        src/mcp/McpCatalog.cpp
-        src/mcp/McpProtocol.h
-        src/mcp/McpProtocol.cpp
-        src/mcp/McpHttp.h
-        src/mcp/McpHttp.cpp
-        src/mcp/McpDispatcher.h
-        src/mcp/McpDispatcher.cpp
-        src/mcp/McpDispatcherExtended.cpp
-        src/mcp/McpServer.h
-        src/mcp/McpServer.cpp
         src/mcp/McpStdio.h
         src/mcp/McpStdio.cpp
-        src/mcp/McpJson.h
     )
 endif()
 
