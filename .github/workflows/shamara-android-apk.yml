@@ -1,0 +1,150 @@
+name: SHAMARA Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/shamara-android-apk.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shamara-android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build signed SHAMARA Android APK (arm64-v8a)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      ABI: arm64-v8a
+      QT_ANDROID_VERSION: 6.11.1
+      QT_ARCH: android_arm64_v8a
+      NDK_VERSION: 27.2.12479018
+
+    steps:
+      - name: Checkout SHAMARA MCP branch
+        uses: actions/checkout@v4
+        with:
+          ref: shamara/android-mcp
+
+      - name: Record source commit
+        id: source
+        shell: bash
+        run: echo "sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/node_modules \
+                      /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/powershell
+          sudo rm -rf "$ANDROID_SDK_ROOT"/ndk
+          df -h /
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Resolve SDK and NDK paths
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$SDK/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install host build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build nasm meson pkg-config ccache \
+            libgl1 libegl1 libxkbcommon0 libfontconfig1
+
+      - name: Install Android NDK and SDK
+        run: |
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" --install "ndk;$NDK_VERSION" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install Qt host and Android kit
+        run: |
+          pipx install aqtinstall
+          export PATH="$HOME/.local/bin:$PATH"
+          aqt install-qt linux desktop "$QT_ANDROID_VERSION" linux_gcc_64 \
+            -m qtmultimedia qtshadertools -O "$HOME/Qt"
+          aqt install-qt all_os android "$QT_ANDROID_VERSION" "$QT_ARCH" \
+            -m qtmultimedia qtshadertools -O "$HOME/Qt"
+          KIT="$HOME/Qt/$QT_ANDROID_VERSION/$QT_ARCH"
+          find "$KIT/bin" "$KIT/libexec" -maxdepth 1 -type f ! -name '*.bat' -exec chmod +x {} +
+
+      - name: Restore prebuilt native dependencies
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: third_party/prebuilt
+          key: shamara-android-deps-${{ env.ABI }}-${{ env.NDK_VERSION }}-${{ hashFiles('third_party/build-android.sh') }}
+
+      - name: Build native dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: ./third_party/build-android.sh "$ABI"
+
+      - name: Save prebuilt native dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: third_party/prebuilt
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
+
+      - name: Drop native dependency sources
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: rm -rf third_party/src
+
+      - name: Build release APK
+        env:
+          DRIFT_ANDROID_PACKAGE_NAME: org.cutwire.drift.ci
+          DRIFT_ANDROID_APP_NAME: Drift SHAMARA MCP
+          DRIFT_ANDROID_VERSION_CODE: ${{ github.run_number }}
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          CCACHE_MAXSIZE: 2G
+        run: |
+          export QT_ANDROID_ROOT="$HOME/Qt/$QT_ANDROID_VERSION/$QT_ARCH"
+          export QT_HOST_PATH="$HOME/Qt/$QT_ANDROID_VERSION/gcc_64"
+          ./scripts/build.sh "$ABI" Release
+
+      - name: Collect and sign test APK
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          BUILD="build/android-$ABI"
+          APK="$(find "$BUILD/android-build/build/outputs/apk/release" -name '*.apk' -print -quit 2>/dev/null || true)"
+          [ -n "$APK" ] || APK="$(find "$BUILD/android-build" -name '*release*.apk' -print -quit)"
+          [ -n "$APK" ] || { echo "no release APK under $BUILD/android-build" >&2; exit 1; }
+
+          mkdir -p dist
+          BT="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)"
+          KS="$RUNNER_TEMP/shamara-test.jks"
+
+          keytool -genkeypair -noprompt \
+            -keystore "$KS" \
+            -storepass shamara-test \
+            -keypass shamara-test \
+            -alias shamara-test \
+            -keyalg RSA -keysize 2048 -validity 3650 \
+            -dname "CN=SHAMARA Drift Test, OU=SHAMARA, O=Local Test, C=ES"
+
+          "$BT/zipalign" -p -f 4 "$APK" "$RUNNER_TEMP/aligned.apk"
+          OUT="dist/Drift-SHAMARA-MCP-${SOURCE_SHA}-arm64-v8a.apk"
+          "$BT/apksigner" sign \
+            --ks "$KS" --ks-pass pass:shamara-test --key-pass pass:shamara-test \
+            --ks-key-alias shamara-test \
+            --out "$OUT" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs "$OUT"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-shamara-mcp-arm64-v8a
+          path: dist/Drift-SHAMARA-MCP-*-arm64-v8a.apk
+          if-no-files-found: error
