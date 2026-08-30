@@ -40,11 +40,9 @@ struct EffectTemplateEntry;
 class QTimer;
 class AddonManager;
 
-#ifndef Q_OS_ANDROID
 namespace drift::mcp {
 class McpServer;
 }
-#endif
 
 #include "playback/ClipPreviewPlayer.h"
 #include "playback/PlaybackEngine.h"
@@ -1669,9 +1667,7 @@ protected:
     // Launch layout picker / first-clip setup completed for this empty project.
     bool m_projectLayoutChosen = false;
 
-#ifndef Q_OS_ANDROID
     std::unique_ptr<drift::mcp::McpServer> m_mcp;
-#endif
     bool m_mcpUndoSuspended = false;
     int m_mcpBatchDepth = 0;
     drift::Project m_mcpBatchBefore;
