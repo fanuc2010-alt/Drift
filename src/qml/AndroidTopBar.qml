@@ -1,5 +1,5 @@
 import QtQuick
-// SHAMARA Android MCP experimental build trigger: HTTP loopback validation.
+// SHAMARA Android MCP experimental build trigger: HTTP loopback validation v2.
 import QtQuick.Controls.Basic
 import QtQuick.Window
 import Drift
