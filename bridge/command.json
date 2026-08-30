@@ -1,11 +1,18 @@
 {
   "channel": "shamara-v1",
-  "id": "bootstrap-000",
-  "execute": false,
+  "id": "bridge-test-001",
+  "execute": true,
   "toolbox": "",
   "rpc": {
     "jsonrpc": "2.0",
     "id": 1,
-    "method": "ping"
+    "method": "tools/call",
+    "params": {
+      "name": "set_metadata",
+      "arguments": {
+        "title": "SHAMARA_BRIDGE_OK",
+        "description": "Comando remoto de validação do bridge SHAMARA."
+      }
+    }
   }
 }
