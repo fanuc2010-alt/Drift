@@ -299,6 +299,11 @@ Item {
                     onTriggered: root.assetsTabRequested("settings")
                 }
                 MenuRow {
+                    text: qsTr("Agent access")
+                    glyph: Theme.icons.bot
+                    onTriggered: root.Window.window.openAgentAccess()
+                }
+                MenuRow {
                     text: Theme.darkMode ? qsTr("Light mode") : qsTr("Dark mode")
                     glyph: Theme.darkMode ? Theme.icons.sun : Theme.icons.moon
                     onTriggered: Theme.toggleDarkMode()
