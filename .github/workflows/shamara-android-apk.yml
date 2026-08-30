@@ -1,5 +1,5 @@
 name: SHAMARA Android APK
-# trigger-v2
+# trigger-v3-bridge
 
 on:
   workflow_dispatch:
