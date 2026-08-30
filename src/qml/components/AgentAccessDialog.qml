@@ -143,13 +143,14 @@ ThemedDialog {
                     variant: "ghost"
                     glyph: root.detailsOpen ? Theme.icons.chevronDown : Theme.icons.chevronRight
                     text: qsTr("More options")
+                    visible: Qt.platform.os !== "android"
                     onClicked: root.detailsOpen = !root.detailsOpen
                 }
 
                 Column {
                     width: parent.width
                     spacing: Theme.spacingMd
-                    visible: root.detailsOpen
+                    visible: root.detailsOpen && Qt.platform.os !== "android"
 
                     ThemedLabel {
                         width: parent.width
