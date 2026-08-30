@@ -38,6 +38,7 @@
 struct EffectTemplateEntry;
 
 class QTimer;
+class QNetworkAccessManager;
 class AddonManager;
 
 namespace drift::mcp {
@@ -117,6 +118,12 @@ class AppController : public QObject
     Q_PROPERTY(QString mcpCursorSnippet READ mcpCursorSnippet NOTIFY mcpRunningChanged)
     Q_PROPERTY(QString mcpClaudeCommand READ mcpClaudeCommand NOTIFY mcpRunningChanged)
     Q_PROPERTY(QString mcpStdioSnippet READ mcpStdioSnippet NOTIFY mcpRunningChanged)
+    // SHAMARA Android relay: polls the owner's exact GitHub control file while Agent access is on.
+    // The control repository remains the authority; this flag is session-only and never persisted.
+    Q_PROPERTY(bool shamaraBridgeEnabled READ shamaraBridgeEnabled WRITE setShamaraBridgeEnabled
+                   NOTIFY shamaraBridgeChanged)
+    Q_PROPERTY(QString shamaraBridgeStatus READ shamaraBridgeStatus NOTIFY shamaraBridgeChanged)
+    Q_PROPERTY(QString shamaraBridgeLastCommand READ shamaraBridgeLastCommand NOTIFY shamaraBridgeChanged)
     // App-wide interface language, QSettings("ui/language"). Empty means follow the OS locale.
     // "en" is the source catalog (no .qm). Other codes match i18n/drift_<code>.qm.
     // needsUiLanguagePrompt is true only on a brand-new install, before the first-launch chooser
@@ -432,6 +439,11 @@ public:
     Q_INVOKABLE void copyMcpStdioSnippet();
     Q_INVOKABLE void copyMcpAgentGuide();
     QString mcpAgentGuide() const;
+    Q_INVOKABLE void setShamaraBridgeEnabled(bool enabled);
+    bool shamaraBridgeEnabled() const { return m_shamaraBridgeEnabled; }
+    QString shamaraBridgeStatus() const { return m_shamaraBridgeStatus; }
+    QString shamaraBridgeLastCommand() const { return m_shamaraLastCommandId; }
+    Q_INVOKABLE void pollShamaraBridge();
     Q_INVOKABLE QVariantMap debugInfo() const;
     Q_INVOKABLE QString debugInfoText() const;
     Q_INVOKABLE void copyDebugInfo();
@@ -1144,6 +1156,7 @@ signals:
     void invertTimelineScrollChanged();
     void mcpRunningChanged();
     void mcpErrorChanged();
+    void shamaraBridgeChanged();
     void uiLanguageChanged();
     void uiScaleChanged();
     void keyframeGraphVisibilityChanged();
@@ -1668,6 +1681,12 @@ protected:
     bool m_projectLayoutChosen = false;
 
     std::unique_ptr<drift::mcp::McpServer> m_mcp;
+    QNetworkAccessManager *m_shamaraNetwork = nullptr;
+    QTimer *m_shamaraTimer = nullptr;
+    bool m_shamaraBridgeEnabled = false;
+    bool m_shamaraPollInFlight = false;
+    QString m_shamaraBridgeStatus;
+    QString m_shamaraLastCommandId;
     bool m_mcpUndoSuspended = false;
     int m_mcpBatchDepth = 0;
     drift::Project m_mcpBatchBefore;
