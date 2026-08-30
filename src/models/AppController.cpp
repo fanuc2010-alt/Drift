@@ -73,6 +73,9 @@
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QJsonObject>
 #include <QOpenGLContext>
 #include <QPainter>
@@ -696,6 +699,16 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
     connect(m_mcp.get(), &drift::mcp::McpServer::runningChanged, this,
             &AppController::mcpRunningChanged);
     connect(m_mcp.get(), &drift::mcp::McpServer::errorChanged, this, &AppController::mcpErrorChanged);
+
+#ifdef Q_OS_ANDROID
+    m_shamaraNetwork = new QNetworkAccessManager(this);
+    m_shamaraTimer = new QTimer(this);
+    m_shamaraTimer->setInterval(10000);
+    connect(m_shamaraTimer, &QTimer::timeout, this, &AppController::pollShamaraBridge);
+    m_shamaraLastCommandId = QSettings().value(QStringLiteral("shamara/lastCommandId")).toString();
+    m_shamaraBridgeStatus = tr("Ready");
+#endif
+
     connect(&m_undoStack, &QUndoStack::indexChanged, this, &AppController::undoStackChanged);
     connect(&m_undoStack, &QUndoStack::indexChanged, this, [this] {
         m_timelineModel.refresh();
@@ -14720,10 +14733,135 @@ void AppController::setMcpEnabled(bool enabled)
 {
     if (!m_mcp)
         return;
-    if (enabled)
-        m_mcp->start();
-    else
+    if (enabled) {
+        const bool started = m_mcp->start();
+#ifdef Q_OS_ANDROID
+        setShamaraBridgeEnabled(started);
+#endif
+    } else {
+#ifdef Q_OS_ANDROID
+        setShamaraBridgeEnabled(false);
+#endif
         m_mcp->stop();
+    }
+}
+
+void AppController::setShamaraBridgeEnabled(bool enabled)
+{
+#ifdef Q_OS_ANDROID
+    if (m_shamaraBridgeEnabled == enabled)
+        return;
+
+    m_shamaraBridgeEnabled = enabled;
+    if (enabled) {
+        m_shamaraBridgeStatus = tr("Connected · waiting for SHAMARA");
+        if (m_shamaraTimer)
+            m_shamaraTimer->start();
+        QTimer::singleShot(300, this, &AppController::pollShamaraBridge);
+    } else {
+        if (m_shamaraTimer)
+            m_shamaraTimer->stop();
+        m_shamaraPollInFlight = false;
+        m_shamaraBridgeStatus = tr("Bridge off");
+    }
+    emit shamaraBridgeChanged();
+#else
+    Q_UNUSED(enabled);
+#endif
+}
+
+void AppController::pollShamaraBridge()
+{
+#ifdef Q_OS_ANDROID
+    if (!m_shamaraBridgeEnabled || !m_shamaraNetwork || m_shamaraPollInFlight)
+        return;
+
+    static const QUrl controlUrl(
+        QStringLiteral("https://raw.githubusercontent.com/fanuc2010-alt/Drift/shamara-control/bridge/command.json"));
+
+    QNetworkRequest request(controlUrl);
+    request.setRawHeader("Cache-Control", "no-cache, no-store, max-age=0");
+    request.setRawHeader("Pragma", "no-cache");
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Drift-SHAMARA-Bridge/1"));
+
+    m_shamaraPollInFlight = true;
+    QNetworkReply *reply = m_shamaraNetwork->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        m_shamaraPollInFlight = false;
+
+        const auto finish = [this, reply](const QString &status) {
+            m_shamaraBridgeStatus = status;
+            emit shamaraBridgeChanged();
+            reply->deleteLater();
+        };
+
+        if (reply->error() != QNetworkReply::NoError) {
+            finish(tr("Bridge network error: %1").arg(reply->errorString()));
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            finish(tr("Bridge command is not valid JSON"));
+            return;
+        }
+
+        const QJsonObject command = doc.object();
+        if (command.value(QStringLiteral("channel")).toString() != QLatin1String("shamara-v1")) {
+            finish(tr("Bridge channel rejected"));
+            return;
+        }
+        if (!command.value(QStringLiteral("execute")).toBool(false)) {
+            finish(tr("Connected · waiting for SHAMARA"));
+            return;
+        }
+
+        const QString id = command.value(QStringLiteral("id")).toString().trimmed();
+        if (id.isEmpty()) {
+            finish(tr("Bridge command has no id"));
+            return;
+        }
+        if (id == m_shamaraLastCommandId) {
+            finish(tr("Connected · last command %1").arg(id));
+            return;
+        }
+
+        if (!m_mcp || (!m_mcp->running() && !m_mcp->start())) {
+            finish(tr("Could not start MCP for SHAMARA"));
+            return;
+        }
+
+        const QJsonValue rpc = command.value(QStringLiteral("rpc"));
+        if (!rpc.isObject() && !rpc.isArray()) {
+            finish(tr("Bridge command has no RPC payload"));
+            return;
+        }
+
+        const QString toolbox = command.value(QStringLiteral("toolbox")).toString();
+        const QJsonValue result = m_mcp->handleRpc(toolbox, rpc);
+
+        bool failed = false;
+        if (result.isObject()) {
+            const QJsonObject o = result.toObject();
+            failed = o.contains(QStringLiteral("error"));
+            const QJsonObject rpcResult = o.value(QStringLiteral("result")).toObject();
+            const QJsonArray content = rpcResult.value(QStringLiteral("content")).toArray();
+            if (!content.isEmpty()) {
+                const QString text = content.first().toObject().value(QStringLiteral("text")).toString();
+                if (text.contains(QStringLiteral("\"ok\":false")))
+                    failed = true;
+            }
+        }
+
+        m_shamaraLastCommandId = id;
+        QSettings().setValue(QStringLiteral("shamara/lastCommandId"), id);
+        finish(failed ? tr("SHAMARA command %1 returned an error").arg(id)
+                      : tr("SHAMARA command %1 executed").arg(id));
+    });
+#else
+    return;
+#endif
 }
 
 namespace {
