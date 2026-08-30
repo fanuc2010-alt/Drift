@@ -1,0 +1,11 @@
+{
+  "channel": "shamara-v1",
+  "id": "bootstrap-000",
+  "execute": false,
+  "toolbox": "",
+  "rpc": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "ping"
+  }
+}
