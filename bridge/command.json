@@ -1,11 +1,11 @@
 {
   "channel": "shamara-v1",
-  "id": "bridge-test-005",
+  "id": "bridge-test-006",
   "execute": true,
   "toolbox": "",
   "rpc": {
     "jsonrpc": "2.0",
-    "id": 5,
+    "id": 6,
     "method": "tools/call",
     "params": {
       "name": "inspect",
