@@ -19,8 +19,9 @@ jobs:
           ref: shamara/android-mcp
 
       - name: Persist SHAMARA execution result
-        shell: python
+        shell: bash
         run: |
+          python3 <<'PY'
           from pathlib import Path
           p = Path('src/models/AppController.cpp')
           s = p.read_text()
@@ -68,6 +69,7 @@ jobs:
               s = s.replace(old, new, 1)
 
           p.write_text(s)
+          PY
 
       - name: Commit bridge result persistence
         run: |
