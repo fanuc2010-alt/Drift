@@ -27,7 +27,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          ARTIFACT_ID: '9741042501'
+          ARTIFACT_ID: '9743458117'
         run: |
           set -euo pipefail
           curl -fL \
