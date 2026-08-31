@@ -14860,12 +14860,12 @@ void AppController::pollShamaraBridge()
         }
 
         m_shamaraLastCommandId = id;
-        const QString result = failed ? tr("SHAMARA command %1 returned an error").arg(id)
-                                      : tr("SHAMARA command %1 executed").arg(id);
+        const QString bridgeResult = failed ? tr("SHAMARA command %1 returned an error").arg(id)
+                                            : tr("SHAMARA command %1 executed").arg(id);
         QSettings settings;
         settings.setValue(QStringLiteral("shamara/lastCommandId"), id);
-        settings.setValue(QStringLiteral("shamara/lastResult"), result);
-        finish(result);
+        settings.setValue(QStringLiteral("shamara/lastResult"), bridgeResult);
+        finish(bridgeResult);
     });
 #else
     return;
