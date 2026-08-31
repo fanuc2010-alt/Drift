@@ -706,7 +706,9 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
     m_shamaraTimer->setInterval(10000);
     connect(m_shamaraTimer, &QTimer::timeout, this, &AppController::pollShamaraBridge);
     m_shamaraLastCommandId = QSettings().value(QStringLiteral("shamara/lastCommandId")).toString();
-    m_shamaraBridgeStatus = tr("Ready");
+    m_shamaraBridgeStatus = QSettings().value(QStringLiteral("shamara/lastResult")).toString();
+    if (m_shamaraBridgeStatus.isEmpty())
+        m_shamaraBridgeStatus = tr("Ready");
 #endif
 
     connect(&m_undoStack, &QUndoStack::indexChanged, this, &AppController::undoStackChanged);
@@ -14823,7 +14825,10 @@ void AppController::pollShamaraBridge()
             return;
         }
         if (id == m_shamaraLastCommandId) {
-            finish(tr("Connected · last command %1").arg(id));
+            const QString persistedResult = QSettings().value(QStringLiteral("shamara/lastResult")).toString();
+            finish(persistedResult.isEmpty()
+                       ? tr("Connected · last command %1").arg(id)
+                       : persistedResult);
             return;
         }
 
@@ -14855,9 +14860,12 @@ void AppController::pollShamaraBridge()
         }
 
         m_shamaraLastCommandId = id;
-        QSettings().setValue(QStringLiteral("shamara/lastCommandId"), id);
-        finish(failed ? tr("SHAMARA command %1 returned an error").arg(id)
-                      : tr("SHAMARA command %1 executed").arg(id));
+        const QString result = failed ? tr("SHAMARA command %1 returned an error").arg(id)
+                                      : tr("SHAMARA command %1 executed").arg(id);
+        QSettings settings;
+        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);
+        settings.setValue(QStringLiteral("shamara/lastResult"), result);
+        finish(result);
     });
 #else
     return;
