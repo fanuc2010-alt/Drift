@@ -1,17 +1,18 @@
 {
   "channel": "shamara-v1",
-  "id": "bridge-test-006",
+  "id": "bridge-v2-install-test-001",
   "execute": true,
+  "callback": "https://shamara-drift-bridge-v2-fanuc2010-1505.vercel.app/api/shamara-callback",
   "toolbox": "",
   "rpc": {
     "jsonrpc": "2.0",
-    "id": 6,
+    "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "inspect",
+      "name": "set_metadata",
       "arguments": {
-        "clips": false,
-        "detail": false
+        "title": "SHAMARA_BRIDGE_OK",
+        "description": "Validação automática ChatGPT → GitHub → Drift Android."
       }
     }
   }
