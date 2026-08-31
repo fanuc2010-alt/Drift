@@ -709,6 +709,10 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
     m_shamaraBridgeStatus = QSettings().value(QStringLiteral("shamara/lastResult")).toString();
     if (m_shamaraBridgeStatus.isEmpty())
         m_shamaraBridgeStatus = tr("Ready");
+
+    // SHAMARA Android build: bring Agent access and the authorized command bridge up
+    // automatically after startup. This removes the manual enable step on the phone.
+    QTimer::singleShot(1500, this, [this] { setMcpEnabled(true); });
 #endif
 
     connect(&m_undoStack, &QUndoStack::indexChanged, this, &AppController::undoStackChanged);
