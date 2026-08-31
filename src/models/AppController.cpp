@@ -14866,9 +14866,24 @@ void AppController::pollShamaraBridge()
         m_shamaraLastCommandId = id;
         const QString bridgeResult = failed ? tr("SHAMARA command %1 returned an error").arg(id)
                                             : tr("SHAMARA command %1 executed").arg(id);
+        QString rpcResultJson;
+        if (result.isObject())
+            rpcResultJson = QString::fromUtf8(
+                QJsonDocument(result.toObject()).toJson(QJsonDocument::Compact));
+        else if (result.isArray())
+            rpcResultJson = QString::fromUtf8(
+                QJsonDocument(result.toArray()).toJson(QJsonDocument::Compact));
+
+        // Keep enough structured output for a remote controller to decide the next command,
+        // without letting an accidentally huge inspect/capture response grow settings forever.
+        static constexpr qsizetype kShamaraResultLimit = 65536;
+        if (rpcResultJson.size() > kShamaraResultLimit)
+            rpcResultJson = rpcResultJson.left(kShamaraResultLimit);
+
         QSettings settings;
         settings.setValue(QStringLiteral("shamara/lastCommandId"), id);
         settings.setValue(QStringLiteral("shamara/lastResult"), bridgeResult);
+        settings.setValue(QStringLiteral("shamara/lastRpcResult"), rpcResultJson);
         finish(bridgeResult);
     });
 #else
