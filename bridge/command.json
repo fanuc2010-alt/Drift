@@ -1,17 +1,17 @@
 {
   "channel": "shamara-v1",
-  "id": "bridge-test-004",
+  "id": "bridge-test-005",
   "execute": true,
   "toolbox": "",
   "rpc": {
     "jsonrpc": "2.0",
-    "id": 4,
+    "id": 5,
     "method": "tools/call",
     "params": {
-      "name": "set_metadata",
+      "name": "inspect",
       "arguments": {
-        "title": "SHAMARA_CHATGPT_CONNECTED_004",
-        "description": "Validação visual da conexão ChatGPT para Drift via SHAMARA Bridge."
+        "clips": false,
+        "detail": false
       }
     }
   }
