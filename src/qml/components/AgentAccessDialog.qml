@@ -94,7 +94,27 @@ ThemedDialog {
                 ThemedLabel {
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    text: qsTr("Copy the setup for the assistant you use. You only need one.")
+                    text: Qt.platform.os === "android"
+                          ? qsTr("SHAMARA can receive commands automatically while this screen's Agent access is on.")
+                          : qsTr("Copy the setup for the assistant you use. You only need one.")
+                }
+
+                ThemedSwitch {
+                    width: parent.width
+                    visible: Qt.platform.os === "android"
+                    checked: EditorState.shamaraBridgeEnabled
+                    text: qsTr("SHAMARA automatic bridge")
+                    tooltip: qsTr("Polls the authorized SHAMARA command channel while Drift is open.")
+                    onToggled: EditorState.setShamaraBridgeEnabled(checked)
+                }
+
+                ThemedLabel {
+                    width: parent.width
+                    visible: Qt.platform.os === "android"
+                    wrapMode: Text.WordWrap
+                    text: EditorState.shamaraBridgeStatus
+                    color: EditorState.shamaraBridgeStatus.indexOf("error") >= 0
+                           ? Theme.destructive : Theme.mutedText
                 }
 
                 ThemedButton {
@@ -143,13 +163,14 @@ ThemedDialog {
                     variant: "ghost"
                     glyph: root.detailsOpen ? Theme.icons.chevronDown : Theme.icons.chevronRight
                     text: qsTr("More options")
+                    visible: Qt.platform.os !== "android"
                     onClicked: root.detailsOpen = !root.detailsOpen
                 }
 
                 Column {
                     width: parent.width
                     spacing: Theme.spacingMd
-                    visible: root.detailsOpen
+                    visible: root.detailsOpen && Qt.platform.os !== "android"
 
                     ThemedLabel {
                         width: parent.width

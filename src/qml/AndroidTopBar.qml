@@ -1,4 +1,5 @@
 import QtQuick
+// SHAMARA Android MCP experimental build trigger: HTTP loopback validation v2.
 import QtQuick.Controls.Basic
 import QtQuick.Window
 import Drift
@@ -297,6 +298,11 @@ Item {
                     text: qsTr("Settings")
                     glyph: Theme.icons.settings
                     onTriggered: root.assetsTabRequested("settings")
+                }
+                MenuRow {
+                    text: qsTr("Agent access")
+                    glyph: Theme.icons.bot
+                    onTriggered: root.Window.window.openAgentAccess()
                 }
                 MenuRow {
                     text: Theme.darkMode ? qsTr("Light mode") : qsTr("Dark mode")

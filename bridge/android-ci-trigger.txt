@@ -1,0 +1,1 @@
+SHAMARA Android CI validation trigger after persistent bridge-result fix.

@@ -304,6 +304,7 @@ ApplicationWindow {
     MissingAddonsDialog { id: missingAddonsDialog }
     UpdateDialog { id: updateDialog }
     DebugInfoDialog { id: debugInfoDialog }
+    AgentAccessDialog { id: agentAccessDialog }
     SubtitleProgressDialog { id: subtitleProgressDialog }
     ReverseProgressDialog { id: reverseProgressDialog }
 
@@ -377,6 +378,10 @@ ApplicationWindow {
 
     function openDebugInfo() {
         debugInfoDialog.open()
+    }
+
+    function openAgentAccess() {
+        agentAccessDialog.openDialog()
     }
 
     readonly property alias addonAttentionNeeded: addonStartupDialog.needsAttention

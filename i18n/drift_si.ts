@@ -253,8 +253,20 @@
         <translation>ප්‍රවේශය ක්‍රියාත්මකයි</translation>
     </message>
     <message>
+        <source>SHAMARA can receive commands automatically while this screen&apos;s Agent access is on.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Copy the setup for the assistant you use. You only need one.</source>
         <translation>ඔබ භාවිත කරන සහායකයා සඳහා සැකසුම පිටපත් කරන්න. ඔබට අවශ්‍ය වන්නේ එකක් පමණි.</translation>
+    </message>
+    <message>
+        <source>SHAMARA automatic bridge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Polls the authorized SHAMARA command channel while Drift is open.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Copy for Cursor</source>
@@ -1133,6 +1145,10 @@
     <message>
         <source>Settings</source>
         <translation>සැකසීම්</translation>
+    </message>
+    <message>
+        <source>Agent access</source>
+        <translation type="unfinished">නියෝජිත (Agent) ප්‍රවේශය</translation>
     </message>
     <message>
         <source>Light mode</source>
@@ -2759,6 +2775,50 @@
     <message>
         <source>Nothing on this device can share that file</source>
         <translation>මෙම උපාංගයේ එම ගොනුව බෙදාගත හැකි කිසිවක් නොමැත</translation>
+    </message>
+    <message>
+        <source>Connected · waiting for SHAMARA</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridge off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridge network error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridge command is not valid JSON</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridge channel rejected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridge command has no id</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connected · last command %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start MCP for SHAMARA</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridge command has no RPC payload</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SHAMARA command %1 returned an error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SHAMARA command %1 executed</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Nudge selection</source>

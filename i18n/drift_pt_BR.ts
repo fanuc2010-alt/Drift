@@ -253,8 +253,20 @@
         <translation>Acesso ativado</translation>
     </message>
     <message>
+        <source>SHAMARA can receive commands automatically while this screen&apos;s Agent access is on.</source>
+        <translation>O SHAMARA pode receber comandos automaticamente enquanto o acesso de agente desta tela estiver ativado.</translation>
+    </message>
+    <message>
         <source>Copy the setup for the assistant you use. You only need one.</source>
         <translation>Copie a configuração do assistente que você usa. Você só precisa de uma.</translation>
+    </message>
+    <message>
+        <source>SHAMARA automatic bridge</source>
+        <translation>Ponte automática SHAMARA</translation>
+    </message>
+    <message>
+        <source>Polls the authorized SHAMARA command channel while Drift is open.</source>
+        <translation>Consulta o canal autorizado de comandos do SHAMARA enquanto o Drift estiver aberto.</translation>
     </message>
     <message>
         <source>Copy for Cursor</source>
@@ -1133,6 +1145,10 @@
     <message>
         <source>Settings</source>
         <translation>Configurações</translation>
+    </message>
+    <message>
+        <source>Agent access</source>
+        <translation type="unfinished">Acesso de agente</translation>
     </message>
     <message>
         <source>Light mode</source>
@@ -2759,6 +2775,50 @@
     <message>
         <source>Nothing on this device can share that file</source>
         <translation>Nenhum aplicativo neste dispositivo pode compartilhar esse arquivo</translation>
+    </message>
+    <message>
+        <source>Connected · waiting for SHAMARA</source>
+        <translation>Conectado · aguardando o SHAMARA</translation>
+    </message>
+    <message>
+        <source>Bridge off</source>
+        <translation>Ponte desativada</translation>
+    </message>
+    <message>
+        <source>Bridge network error: %1</source>
+        <translation>Erro de rede da ponte: %1</translation>
+    </message>
+    <message>
+        <source>Bridge command is not valid JSON</source>
+        <translation>O comando da ponte não é um JSON válido</translation>
+    </message>
+    <message>
+        <source>Bridge channel rejected</source>
+        <translation>Canal da ponte rejeitado</translation>
+    </message>
+    <message>
+        <source>Bridge command has no id</source>
+        <translation>O comando da ponte não possui ID</translation>
+    </message>
+    <message>
+        <source>Connected · last command %1</source>
+        <translation>Conectado · último comando %1</translation>
+    </message>
+    <message>
+        <source>Could not start MCP for SHAMARA</source>
+        <translation>Não foi possível iniciar o MCP para o SHAMARA</translation>
+    </message>
+    <message>
+        <source>Bridge command has no RPC payload</source>
+        <translation>O comando da ponte não possui conteúdo RPC</translation>
+    </message>
+    <message>
+        <source>SHAMARA command %1 returned an error</source>
+        <translation>O comando SHAMARA %1 retornou um erro</translation>
+    </message>
+    <message>
+        <source>SHAMARA command %1 executed</source>
+        <translation>Comando SHAMARA %1 executado</translation>
     </message>
     <message>
         <source>Nudge selection</source>

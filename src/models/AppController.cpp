@@ -55,10 +55,8 @@
 #include "engine/TextRaster.h"
 #include "engine/TransitionCatalog.h"
 #include "engine/WhisperTranscriber.h"
-#ifndef Q_OS_ANDROID
 #include "mcp/McpCatalog.h"
 #include "mcp/McpServer.h"
-#endif
 #include "mcp/McpJson.h"
 
 #include <QBuffer>
@@ -75,6 +73,9 @@
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QJsonObject>
 #include <QOpenGLContext>
 #include <QPainter>
@@ -643,10 +644,8 @@ AppController::~AppController()
     if (hadMulticamSession)
         m_playback.setProject(&m_project);
 
-#ifndef Q_OS_ANDROID
     if (m_mcp)
         m_mcp->stop();
-#endif
     // ~QUndoStack clears the stack, which emits indexChanged into the lambda
     // below — but by then the members it touches (m_selection, the models) are
     // already gone. Cut the signals before any member is destroyed.
@@ -696,12 +695,26 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
 
     m_undoStack.setUndoLimit(kMaxUndoSteps);
 
-#ifndef Q_OS_ANDROID
     m_mcp = std::make_unique<drift::mcp::McpServer>(this);
     connect(m_mcp.get(), &drift::mcp::McpServer::runningChanged, this,
             &AppController::mcpRunningChanged);
     connect(m_mcp.get(), &drift::mcp::McpServer::errorChanged, this, &AppController::mcpErrorChanged);
+
+#ifdef Q_OS_ANDROID
+    m_shamaraNetwork = new QNetworkAccessManager(this);
+    m_shamaraTimer = new QTimer(this);
+    m_shamaraTimer->setInterval(10000);
+    connect(m_shamaraTimer, &QTimer::timeout, this, &AppController::pollShamaraBridge);
+    m_shamaraLastCommandId = QSettings().value(QStringLiteral("shamara/lastCommandId")).toString();
+    m_shamaraBridgeStatus = QSettings().value(QStringLiteral("shamara/lastResult")).toString();
+    if (m_shamaraBridgeStatus.isEmpty())
+        m_shamaraBridgeStatus = tr("Ready");
+
+    // SHAMARA Android build: bring Agent access and the authorized command bridge up
+    // automatically after startup. This removes the manual enable step on the phone.
+    QTimer::singleShot(1500, this, [this] { setMcpEnabled(true); });
 #endif
+
     connect(&m_undoStack, &QUndoStack::indexChanged, this, &AppController::undoStackChanged);
     connect(&m_undoStack, &QUndoStack::indexChanged, this, [this] {
         m_timelineModel.refresh();
@@ -14677,65 +14690,37 @@ void AppController::shareLastExport()
 
 bool AppController::mcpRunning() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp && m_mcp->running();
-#else
-    return false;
-#endif
 }
 
 QString AppController::mcpUrl() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->url() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpToken() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->token() : QString();
-#else
-    return {};
-#endif
 }
 
 int AppController::mcpPort() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? int(m_mcp->port()) : 0;
-#else
-    return 0;
-#endif
 }
 
 QString AppController::mcpError() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->error() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpCursorSnippet() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->cursorSnippet() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpClaudeCommand() const
 {
-#ifndef Q_OS_ANDROID
     return m_mcp ? m_mcp->claudeCommand() : QString();
-#else
-    return {};
-#endif
 }
 
 QString AppController::mcpStdioSnippet() const
@@ -14752,15 +14737,157 @@ QString AppController::mcpStdioSnippet() const
 
 void AppController::setMcpEnabled(bool enabled)
 {
-#ifndef Q_OS_ANDROID
     if (!m_mcp)
         return;
-    if (enabled)
-        m_mcp->start();
-    else
+    if (enabled) {
+        const bool started = m_mcp->start();
+#ifdef Q_OS_ANDROID
+        setShamaraBridgeEnabled(started);
+#endif
+    } else {
+#ifdef Q_OS_ANDROID
+        setShamaraBridgeEnabled(false);
+#endif
         m_mcp->stop();
+    }
+}
+
+void AppController::setShamaraBridgeEnabled(bool enabled)
+{
+#ifdef Q_OS_ANDROID
+    if (m_shamaraBridgeEnabled == enabled)
+        return;
+
+    m_shamaraBridgeEnabled = enabled;
+    if (enabled) {
+        m_shamaraBridgeStatus = tr("Connected · waiting for SHAMARA");
+        if (m_shamaraTimer)
+            m_shamaraTimer->start();
+        QTimer::singleShot(300, this, &AppController::pollShamaraBridge);
+    } else {
+        if (m_shamaraTimer)
+            m_shamaraTimer->stop();
+        m_shamaraPollInFlight = false;
+        m_shamaraBridgeStatus = tr("Bridge off");
+    }
+    emit shamaraBridgeChanged();
 #else
     Q_UNUSED(enabled);
+#endif
+}
+
+void AppController::pollShamaraBridge()
+{
+#ifdef Q_OS_ANDROID
+    if (!m_shamaraBridgeEnabled || !m_shamaraNetwork || m_shamaraPollInFlight)
+        return;
+
+    static const QUrl controlUrl(
+        QStringLiteral("https://raw.githubusercontent.com/fanuc2010-alt/Drift/shamara-control/bridge/command.json"));
+
+    QNetworkRequest request(controlUrl);
+    request.setRawHeader("Cache-Control", "no-cache, no-store, max-age=0");
+    request.setRawHeader("Pragma", "no-cache");
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("Drift-SHAMARA-Bridge/1"));
+
+    m_shamaraPollInFlight = true;
+    QNetworkReply *reply = m_shamaraNetwork->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        m_shamaraPollInFlight = false;
+
+        const auto finish = [this, reply](const QString &status) {
+            m_shamaraBridgeStatus = status;
+            emit shamaraBridgeChanged();
+            reply->deleteLater();
+        };
+
+        if (reply->error() != QNetworkReply::NoError) {
+            finish(tr("Bridge network error: %1").arg(reply->errorString()));
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            finish(tr("Bridge command is not valid JSON"));
+            return;
+        }
+
+        const QJsonObject command = doc.object();
+        if (command.value(QStringLiteral("channel")).toString() != QLatin1String("shamara-v1")) {
+            finish(tr("Bridge channel rejected"));
+            return;
+        }
+        if (!command.value(QStringLiteral("execute")).toBool(false)) {
+            finish(tr("Connected · waiting for SHAMARA"));
+            return;
+        }
+
+        const QString id = command.value(QStringLiteral("id")).toString().trimmed();
+        if (id.isEmpty()) {
+            finish(tr("Bridge command has no id"));
+            return;
+        }
+        if (id == m_shamaraLastCommandId) {
+            const QString persistedResult = QSettings().value(QStringLiteral("shamara/lastResult")).toString();
+            finish(persistedResult.isEmpty()
+                       ? tr("Connected · last command %1").arg(id)
+                       : persistedResult);
+            return;
+        }
+
+        if (!m_mcp || (!m_mcp->running() && !m_mcp->start())) {
+            finish(tr("Could not start MCP for SHAMARA"));
+            return;
+        }
+
+        const QJsonValue rpc = command.value(QStringLiteral("rpc"));
+        if (!rpc.isObject() && !rpc.isArray()) {
+            finish(tr("Bridge command has no RPC payload"));
+            return;
+        }
+
+        const QString toolbox = command.value(QStringLiteral("toolbox")).toString();
+        const QJsonValue result = m_mcp->handleRpc(toolbox, rpc);
+
+        bool failed = false;
+        if (result.isObject()) {
+            const QJsonObject o = result.toObject();
+            failed = o.contains(QStringLiteral("error"));
+            const QJsonObject rpcResult = o.value(QStringLiteral("result")).toObject();
+            const QJsonArray content = rpcResult.value(QStringLiteral("content")).toArray();
+            if (!content.isEmpty()) {
+                const QString text = content.first().toObject().value(QStringLiteral("text")).toString();
+                if (text.contains(QStringLiteral("\"ok\":false")))
+                    failed = true;
+            }
+        }
+
+        m_shamaraLastCommandId = id;
+        const QString bridgeResult = failed ? tr("SHAMARA command %1 returned an error").arg(id)
+                                            : tr("SHAMARA command %1 executed").arg(id);
+        QString rpcResultJson;
+        if (result.isObject())
+            rpcResultJson = QString::fromUtf8(
+                QJsonDocument(result.toObject()).toJson(QJsonDocument::Compact));
+        else if (result.isArray())
+            rpcResultJson = QString::fromUtf8(
+                QJsonDocument(result.toArray()).toJson(QJsonDocument::Compact));
+
+        // Keep enough structured output for a remote controller to decide the next command,
+        // without letting an accidentally huge inspect/capture response grow settings forever.
+        static constexpr qsizetype kShamaraResultLimit = 65536;
+        if (rpcResultJson.size() > kShamaraResultLimit)
+            rpcResultJson = rpcResultJson.left(kShamaraResultLimit);
+
+        QSettings settings;
+        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);
+        settings.setValue(QStringLiteral("shamara/lastResult"), bridgeResult);
+        settings.setValue(QStringLiteral("shamara/lastRpcResult"), rpcResultJson);
+        finish(bridgeResult);
+    });
+#else
+    return;
 #endif
 }
 
@@ -14793,16 +14920,12 @@ void AppController::copyMcpStdioSnippet()
 
 QString AppController::mcpAgentGuide() const
 {
-#ifndef Q_OS_ANDROID
     QString guide = drift::mcp::agentGuideText();
     if (m_mcp && m_mcp->running()) {
         guide += QStringLiteral("\nThis session:\nURL: %1\nToken: %2\n")
                      .arg(mcpUrl(), mcpToken());
     }
     return guide;
-#else
-    return {};
-#endif
 }
 
 void AppController::copyMcpAgentGuide()
