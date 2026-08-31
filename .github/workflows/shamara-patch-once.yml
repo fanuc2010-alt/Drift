@@ -1,0 +1,63 @@
+name: SHAMARA Patch Once
+
+on:
+  push:
+    branches:
+      - shamara/android-mcp
+    paths:
+      - '.github/workflows/shamara-patch-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: shamara/android-mcp
+
+      - name: Patch AppController
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('src/models/AppController.cpp')
+          s = p.read_text()
+
+          replacements = [
+              (
+                  '    m_shamaraLastCommandId = QSettings().value(QStringLiteral("shamara/lastCommandId")).toString();\n    m_shamaraBridgeStatus = tr("Ready");',
+                  '    m_shamaraLastCommandId = QSettings().value(QStringLiteral("shamara/lastCommandId")).toString();\n    m_shamaraBridgeStatus = QSettings().value(QStringLiteral("shamara/lastResult")).toString();\n    if (m_shamaraBridgeStatus.isEmpty())\n        m_shamaraBridgeStatus = tr("Ready");'
+              ),
+              (
+                  '        if (id == m_shamaraLastCommandId) {\n            finish(tr("Connected · last command %1").arg(id));\n            return;\n        }',
+                  '        if (id == m_shamaraLastCommandId) {\n            const QString persistedResult = QSettings().value(QStringLiteral("shamara/lastResult")).toString();\n            finish(persistedResult.isEmpty()\n                       ? tr("Connected · last command %1").arg(id)\n                       : persistedResult);\n            return;\n        }'
+              ),
+              (
+                  '        m_shamaraLastCommandId = id;\n        QSettings().setValue(QStringLiteral("shamara/lastCommandId"), id);\n        finish(failed ? tr("SHAMARA command %1 returned an error").arg(id)\n                      : tr("SHAMARA command %1 executed").arg(id));',
+                  '        m_shamaraLastCommandId = id;\n        const QString result = failed ? tr("SHAMARA command %1 returned an error").arg(id)\n                                      : tr("SHAMARA command %1 executed").arg(id);\n        QSettings settings;\n        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);\n        settings.setValue(QStringLiteral("shamara/lastResult"), result);\n        finish(result);'
+              ),
+          ]
+
+          for old, new in replacements:
+              if new in s:
+                  continue
+              if old not in s:
+                  raise SystemExit('expected SHAMARA block not found')
+              s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- src/models/AppController.cpp; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/models/AppController.cpp
+          git commit -m "shamara: persist bridge command result"
+          git push origin HEAD:shamara/android-mcp
