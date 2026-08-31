@@ -41,10 +41,17 @@
 #include "core/Project.h"
 #include "engine/FrameCompositor.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QSettings>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QUrl>
 #endif
 
 extern "C" {
@@ -104,6 +111,108 @@ private:
 };
 
 #ifdef Q_OS_ANDROID
+class ShamaraResultReturner : public QObject
+{
+public:
+    explicit ShamaraResultReturner(QObject *parent = nullptr)
+        : QObject(parent)
+    {
+        m_timer.setInterval(5000);
+        QObject::connect(&m_timer, &QTimer::timeout, this, [this] { poll(); });
+        m_timer.start();
+        QTimer::singleShot(1500, this, [this] { poll(); });
+    }
+
+private:
+    void poll()
+    {
+        if (m_pollInFlight || m_postInFlight)
+            return;
+
+        static const QUrl controlUrl(
+            QStringLiteral("https://raw.githubusercontent.com/fanuc2010-alt/Drift/shamara-control/bridge/command.json"));
+        QNetworkRequest request(controlUrl);
+        request.setRawHeader("Cache-Control", "no-cache, no-store, max-age=0");
+        request.setRawHeader("Pragma", "no-cache");
+        request.setHeader(QNetworkRequest::UserAgentHeader,
+                          QStringLiteral("Drift-SHAMARA-Returner/1"));
+
+        m_pollInFlight = true;
+        QNetworkReply *reply = m_network.get(request);
+        QObject::connect(reply, &QNetworkReply::finished, this, [this, reply] {
+            m_pollInFlight = false;
+            const QByteArray body = reply->readAll();
+            const bool networkOk = reply->error() == QNetworkReply::NoError;
+            reply->deleteLater();
+            if (!networkOk)
+                return;
+
+            QJsonParseError parseError;
+            const QJsonDocument doc = QJsonDocument::fromJson(body, &parseError);
+            if (parseError.error != QJsonParseError::NoError || !doc.isObject())
+                return;
+
+            const QJsonObject command = doc.object();
+            if (command.value(QStringLiteral("channel")).toString() != QStringLiteral("shamara-v1"))
+                return;
+
+            const QString id = command.value(QStringLiteral("id")).toString().trimmed();
+            const QUrl callbackUrl(command.value(QStringLiteral("callback")).toString().trimmed());
+            if (id.isEmpty() || !callbackUrl.isValid()
+                || callbackUrl.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) != 0
+                || callbackUrl.host().isEmpty())
+                return;
+
+            QSettings settings;
+            const QString completedId = settings.value(QStringLiteral("shamara/lastCommandId")).toString();
+            const QString result = settings.value(QStringLiteral("shamara/lastResult")).toString();
+            if (completedId != id || result.isEmpty())
+                return;
+
+            const QString deliveryKey = id + QLatin1Char('|') + callbackUrl.toString(QUrl::FullyEncoded)
+                                        + QLatin1Char('|') + result;
+            if (settings.value(QStringLiteral("shamara/lastCallbackDelivery")).toString() == deliveryKey)
+                return;
+
+            QJsonObject payload;
+            payload.insert(QStringLiteral("channel"), QStringLiteral("shamara-v1"));
+            payload.insert(QStringLiteral("commandId"), id);
+            payload.insert(QStringLiteral("status"), QStringLiteral("reported"));
+            payload.insert(QStringLiteral("message"), result.left(512));
+            payload.insert(QStringLiteral("app"), QStringLiteral("Drift"));
+            payload.insert(QStringLiteral("platform"), QStringLiteral("android"));
+            payload.insert(QStringLiteral("ts"),
+                           QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+
+            QNetworkRequest callbackRequest(callbackUrl);
+            callbackRequest.setHeader(QNetworkRequest::ContentTypeHeader,
+                                      QStringLiteral("application/json"));
+            callbackRequest.setHeader(QNetworkRequest::UserAgentHeader,
+                                      QStringLiteral("Drift-SHAMARA-Returner/1"));
+
+            m_postInFlight = true;
+            QNetworkReply *callbackReply = m_network.post(
+                callbackRequest, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+            QObject::connect(callbackReply, &QNetworkReply::finished, this,
+                             [this, callbackReply, deliveryKey] {
+                const int httpStatus = callbackReply->attribute(
+                    QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                const bool delivered = callbackReply->error() == QNetworkReply::NoError
+                                       && httpStatus >= 200 && httpStatus < 300;
+                callbackReply->deleteLater();
+                m_postInFlight = false;
+                if (delivered)
+                    QSettings().setValue(QStringLiteral("shamara/lastCallbackDelivery"), deliveryKey);
+            });
+        });
+    }
+
+    QNetworkAccessManager m_network;
+    QTimer m_timer;
+    bool m_pollInFlight = false;
+    bool m_postInFlight = false;
+};
+
 // On-device render check. With <AppDataLocation>/selftest.json in place, composite one frame and
 // write selftest.png beside it instead of starting the UI. This is tools/renderframe moved onto
 // the device: it exercises FFmpeg decode, the GLES offscreen context, the shader translation and
@@ -233,6 +342,9 @@ int main(int argc, char *argv[])
     drift::applyVaapiZeroCopyXcbEgl();
 
     QApplication app(argc, argv);
+#ifdef Q_OS_ANDROID
+    ShamaraResultReturner shamaraResultReturner(&app);
+#endif
     if (!QImageReader::supportedImageFormats().contains("svg")) {
         qWarning("SVG icons will not display: Qt's SVG image plugin is missing or built "
                  "for a different Qt version than this binary. Install a matching qt6-svg "
