@@ -1,17 +1,17 @@
 {
   "channel": "shamara-v1",
-  "id": "bridge-test-002",
+  "id": "bridge-test-003",
   "execute": true,
   "toolbox": "",
   "rpc": {
     "jsonrpc": "2.0",
-    "id": 2,
+    "id": 3,
     "method": "tools/call",
     "params": {
       "name": "set_metadata",
       "arguments": {
-        "title": "SHAMARA_BRIDGE_TEST_002",
-        "description": "Validação automática do ciclo ChatGPT-GitHub-SHAMARA Bridge-Drift."
+        "title": "SHAMARA_REMOTE_OK_003",
+        "description": "Teste visual reversível do canal remoto SHAMARA Bridge."
       }
     }
   }
