@@ -166,11 +166,12 @@ private:
             QSettings settings;
             const QString completedId = settings.value(QStringLiteral("shamara/lastCommandId")).toString();
             const QString result = settings.value(QStringLiteral("shamara/lastResult")).toString();
+            const QString rpcResult = settings.value(QStringLiteral("shamara/lastRpcResult")).toString();
             if (completedId != id || result.isEmpty())
                 return;
 
             const QString deliveryKey = id + QLatin1Char('|') + callbackUrl.toString(QUrl::FullyEncoded)
-                                        + QLatin1Char('|') + result;
+                                        + QLatin1Char('|') + result + QLatin1Char('|') + rpcResult;
             if (settings.value(QStringLiteral("shamara/lastCallbackDelivery")).toString() == deliveryKey)
                 return;
 
@@ -179,6 +180,19 @@ private:
             payload.insert(QStringLiteral("commandId"), id);
             payload.insert(QStringLiteral("status"), QStringLiteral("reported"));
             payload.insert(QStringLiteral("message"), result.left(512));
+            if (!rpcResult.isEmpty()) {
+                QJsonParseError resultParseError;
+                const QJsonDocument resultDoc =
+                    QJsonDocument::fromJson(rpcResult.toUtf8(), &resultParseError);
+                if (resultParseError.error == QJsonParseError::NoError) {
+                    if (resultDoc.isObject())
+                        payload.insert(QStringLiteral("rpcResult"), resultDoc.object());
+                    else if (resultDoc.isArray())
+                        payload.insert(QStringLiteral("rpcResult"), resultDoc.array());
+                } else {
+                    payload.insert(QStringLiteral("rpcResultText"), rpcResult.left(65536));
+                }
+            }
             payload.insert(QStringLiteral("app"), QStringLiteral("Drift"));
             payload.insert(QStringLiteral("platform"), QStringLiteral("android"));
             payload.insert(QStringLiteral("ts"),
