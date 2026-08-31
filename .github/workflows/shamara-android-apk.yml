@@ -1,5 +1,5 @@
 name: SHAMARA Android APK
-# trigger-v6-autostart
+# trigger-v7-bridge-result
 
 on:
   workflow_dispatch:
@@ -102,8 +102,8 @@ jobs:
 
       - name: Build release APK
         env:
-          DRIFT_ANDROID_PACKAGE_NAME: org.cutwire.drift.ci
-          DRIFT_ANDROID_APP_NAME: Drift SHAMARA MCP
+          DRIFT_ANDROID_PACKAGE_NAME: org.cutwire.drift.shamara.bridgev2
+          DRIFT_ANDROID_APP_NAME: Drift SHAMARA Bridge
           DRIFT_ANDROID_VERSION_CODE: ${{ github.run_number }}
           CMAKE_C_COMPILER_LAUNCHER: ccache
           CMAKE_CXX_COMPILER_LAUNCHER: ccache
