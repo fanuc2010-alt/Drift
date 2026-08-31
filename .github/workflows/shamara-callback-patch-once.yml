@@ -2,7 +2,8 @@ name: SHAMARA callback patch once
 
 on:
   push:
-    branches: [shamara/android-mcp]
+    branches:
+      - shamara/android-mcp
     paths:
       - '.github/workflows/shamara-callback-patch-once.yml'
 
@@ -17,8 +18,9 @@ jobs:
         with:
           ref: shamara/android-mcp
       - name: Patch optional HTTPS callback
-        shell: python
+        shell: bash
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           p = Path('src/models/AppController.cpp')
           s = p.read_text()
@@ -66,7 +68,9 @@ jobs:
           if old not in s:
               raise SystemExit('Expected SHAMARA result block not found; refusing patch')
           p.write_text(s.replace(old, new, 1))
+          PY
       - name: Commit patch
+        shell: bash
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
