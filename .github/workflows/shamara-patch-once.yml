@@ -1,0 +1,85 @@
+name: SHAMARA Patch Once
+
+on:
+  push:
+    branches:
+      - shamara/android-mcp
+    paths:
+      - '.github/workflows/shamara-patch-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: shamara/android-mcp
+
+      - name: Patch AppController
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('src/models/AppController.cpp')
+          s = p.read_text()
+
+          old = '''        m_shamaraLastCommandId = id;
+        const QString bridgeResult = failed ? tr("SHAMARA command %1 returned an error").arg(id)
+                                            : tr("SHAMARA command %1 executed").arg(id);
+        QSettings settings;
+        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);
+        settings.setValue(QStringLiteral("shamara/lastResult"), bridgeResult);
+        finish(bridgeResult);'''
+
+          new = '''        m_shamaraLastCommandId = id;
+        const QString bridgeResult = failed ? tr("SHAMARA command %1 returned an error").arg(id)
+                                            : tr("SHAMARA command %1 executed").arg(id);
+        QSettings settings;
+        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);
+        settings.setValue(QStringLiteral("shamara/lastResult"), bridgeResult);
+
+        // Optional credential-free result return channel. Only HTTPS is accepted,
+        // and callback failure never changes the command's local result.
+        const QUrl callbackUrl(command.value(QStringLiteral("callback")).toString().trimmed());
+        if (callbackUrl.isValid()
+            && callbackUrl.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0
+            && !callbackUrl.host().isEmpty()) {
+            QJsonObject statusPayload;
+            statusPayload.insert(QStringLiteral("channel"), QStringLiteral("shamara-v1"));
+            statusPayload.insert(QStringLiteral("commandId"), id);
+            statusPayload.insert(QStringLiteral("status"), failed ? QStringLiteral("error")
+                                                                   : QStringLiteral("executed"));
+            statusPayload.insert(QStringLiteral("message"), bridgeResult.left(512));
+            statusPayload.insert(QStringLiteral("app"), QStringLiteral("Drift"));
+            statusPayload.insert(QStringLiteral("platform"), QStringLiteral("android"));
+            statusPayload.insert(QStringLiteral("ts"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+
+            QNetworkRequest callbackRequest(callbackUrl);
+            callbackRequest.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+            QNetworkReply *callbackReply = m_shamaraNetwork->post(
+                callbackRequest, QJsonDocument(statusPayload).toJson(QJsonDocument::Compact));
+            connect(callbackReply, &QNetworkReply::finished, callbackReply, &QObject::deleteLater);
+        }
+
+        finish(bridgeResult);'''
+
+          if new in s:
+              raise SystemExit(0)
+          if old not in s:
+              raise SystemExit('expected SHAMARA result block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- src/models/AppController.cpp; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/models/AppController.cpp
+          git commit -m "shamara: add optional HTTPS result callback"
+          git push origin HEAD:shamara/android-mcp
