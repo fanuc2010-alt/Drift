@@ -1,0 +1,41 @@
+name: SHAMARA Fix Result Name
+
+on:
+  push:
+    branches:
+      - shamara/android-mcp
+    paths:
+      - '.github/workflows/shamara-fix-result-name.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: shamara/android-mcp
+      - name: Rename bridge result variable
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('src/models/AppController.cpp')
+          s = p.read_text()
+          old = '''        const QString result = failed ? tr("SHAMARA command %1 returned an error").arg(id)\n                                      : tr("SHAMARA command %1 executed").arg(id);\n        QSettings settings;\n        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);\n        settings.setValue(QStringLiteral("shamara/lastResult"), result);\n        finish(result);'''
+          new = '''        const QString bridgeResult = failed ? tr("SHAMARA command %1 returned an error").arg(id)\n                                            : tr("SHAMARA command %1 executed").arg(id);\n        QSettings settings;\n        settings.setValue(QStringLiteral("shamara/lastCommandId"), id);\n        settings.setValue(QStringLiteral("shamara/lastResult"), bridgeResult);\n        finish(bridgeResult);'''
+          if new in s:
+              raise SystemExit(0)
+          if old not in s:
+              raise SystemExit('expected block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        run: |
+          if git diff --quiet -- src/models/AppController.cpp; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/models/AppController.cpp
+          git commit -m "shamara: fix persisted result variable name"
+          git push origin HEAD:shamara/android-mcp
