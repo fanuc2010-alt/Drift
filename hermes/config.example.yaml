@@ -1,0 +1,7 @@
+# Merge this section into ~/.hermes/config.yaml if needed.
+# Never place secrets or OAuth tokens in this repository.
+
+mcp_servers:
+  magnific:
+    url: "https://mcp.magnific.com"
+    auth: oauth
